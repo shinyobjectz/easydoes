@@ -7,6 +7,8 @@
 //   GET  /api/invite/:code                a group's name and size, before joining;  POST /api/invite/:code  join it
 //   GET  /api/groups/:id/live             the board's WebSocket (members only)
 //   /api/agent/* (bearer AGENT_TOKEN)     raea admin agent: groups (list, make), state, ops (shown live as the agent's)
+//   /api/agent/admin/*                    for easydoes's owner, through the agent: stats, every group with its invite link,
+//                                         a fresh invite link, add or remove a member, rename
 import { newId, type Op, type Presence } from "../shared/board"
 import { checkCode, endSession, personOf, phone, sendCode, startSession } from "./auth"
 import type { Env } from "./env"
@@ -38,6 +40,89 @@ async function me(env: Env, id: string) {
 
 const isMember = (env: Env, g: string, p: string) => env.DB.prepare("SELECT 1 FROM members WHERE group_id = ? AND person_id = ?").bind(g, p).first()
 
+const link = (env: Env, code: string) => `${env.ORIGIN}/j/${code}`
+const masked = (ph: string | null) => (ph ? `•••${ph.slice(-4)}` : "")
+
+/** a group by id, or by its name (case-insensitive, the newest if several share it) */
+async function groupNamed(env: Env, key: string) {
+  return env.DB.prepare("SELECT id, name, emoji, invite FROM groups WHERE id = ?1 OR lower(name) = lower(?1) ORDER BY created_at DESC LIMIT 1").bind(key).first<{ id: string; name: string; emoji: string; invite: string }>()
+}
+
+async function admin(req: Request, env: Env, path: string, m: string): Promise<Response> {
+  if (path === "stats" && m === "GET") {
+    const week = Date.now() - 7 * 86400_000
+    const [people, groups, newPeople, newGroups, live] = await Promise.all([
+      env.DB.prepare("SELECT COUNT(*) n FROM people WHERE agent = 0").first<{ n: number }>(),
+      env.DB.prepare("SELECT COUNT(*) n FROM groups").first<{ n: number }>(),
+      env.DB.prepare("SELECT COUNT(*) n FROM people WHERE agent = 0 AND created_at > ?").bind(week).first<{ n: number }>(),
+      env.DB.prepare("SELECT COUNT(*) n FROM groups WHERE created_at > ?").bind(week).first<{ n: number }>(),
+      env.DB.prepare("SELECT COUNT(DISTINCT person_id) n FROM sessions WHERE expires > ?").bind(Date.now()).first<{ n: number }>(),
+    ])
+    return json({ people: people?.n, groups: groups?.n, new_people_7d: newPeople?.n, new_groups_7d: newGroups?.n, signed_in_people: live?.n })
+  }
+  if (path === "groups" && m === "GET") {
+    const gs = await env.DB.prepare("SELECT id, name, emoji, invite, created_at FROM groups ORDER BY created_at DESC LIMIT 200").all<any>()
+    const ms = await env.DB.prepare("SELECT m.group_id, p.id, p.name, p.phone, p.agent, m.role, m.joined_at FROM members m JOIN people p ON p.id = m.person_id ORDER BY m.joined_at").all<any>()
+    return json({
+      groups: gs.results.map((g) => ({
+        id: g.id,
+        name: g.name,
+        emoji: g.emoji,
+        invite_link: link(env, g.invite),
+        made: new Date(g.created_at).toISOString().slice(0, 10),
+        members: ms.results.filter((x) => x.group_id === g.id).map((x) => ({ name: x.name || "(no name yet)", role: x.role, phone: masked(x.phone), joined: new Date(x.joined_at).toISOString().slice(0, 10) })),
+      })),
+    })
+  }
+  const gm = path.match(/^groups\/([^/]+)(?:\/(invite|members|remove))?$/)
+  if (!gm || m !== "POST") return json({ error: "not found" }, 404)
+  const g = await groupNamed(env, decodeURIComponent(gm[1]))
+  if (!g) return json({ error: `No group called ${decodeURIComponent(gm[1])}.` }, 404)
+  const b = await body(req)
+  const stub = env.GROUP.get(env.GROUP.idFromName(g.id))
+  if (gm[2] === "invite") {
+    const code = invite()
+    await env.DB.prepare("UPDATE groups SET invite = ? WHERE id = ?").bind(code, g.id).run()
+    return json({ group: g.name, invite_link: link(env, code), old_link_works: false })
+  }
+  if (gm[2] === "members") {
+    const now = Date.now()
+    let pid: string
+    if (/^(raea|agent|the agent)$/i.test(String(b.phone ?? b.name ?? "").trim()) && !b.phone?.match?.(/\d/)) pid = "agent-raea"
+    else {
+      const to = phone(b.phone)
+      if (!to) return json({ error: "That isn't a phone number. Include the country code outside the US." }, 400)
+      pid = (await env.DB.prepare("SELECT id FROM people WHERE phone = ?").bind(to).first<{ id: string }>())?.id ?? ""
+      if (!pid) {
+        pid = newId("u")
+        await env.DB.prepare("INSERT INTO people (id, phone, name, emoji, color, created_at) VALUES (?, ?, ?, ?, ?, ?)").bind(pid, to, String(b.name ?? "").trim().slice(0, 40), pick(EMOJI), pick(COLORS), now).run()
+      } else if (b.name) await env.DB.prepare("UPDATE people SET name = CASE WHEN name = '' THEN ? ELSE name END WHERE id = ?").bind(String(b.name).trim().slice(0, 40), pid).run()
+    }
+    const role = pid === "agent-raea" ? "agent" : b.role === "owner" ? "owner" : "member"
+    const r = await env.DB.prepare("INSERT OR IGNORE INTO members (group_id, person_id, role, joined_at) VALUES (?, ?, ?, ?)").bind(g.id, pid, role, now).run()
+    await stub.membersChanged()
+    return json({ group: g.name, added: r.meta.changes > 0, already_in: r.meta.changes === 0, group_link: `${env.ORIGIN}/g/${g.id}`, note: "They sign in at easydoes.ai with that number and the group is there." })
+  }
+  if (gm[2] === "remove") {
+    const who = String(b.who ?? "").trim().toLowerCase()
+    const ms = await env.DB.prepare("SELECT p.id, p.name, p.phone, m.role FROM members m JOIN people p ON p.id = m.person_id WHERE m.group_id = ?").bind(g.id).all<any>()
+    const digits = who.replace(/\D/g, "")
+    const hit = ms.results.filter((x) => (digits.length >= 4 && x.phone?.endsWith(digits)) || (x.name && x.name.toLowerCase().split(" ")[0] === who.split(" ")[0]) || (who === "raea" && x.id === "agent-raea"))
+    if (hit.length !== 1) return json({ error: hit.length ? `More than one member matches "${b.who}"; give their phone's last 4.` : `No one in ${g.name} matches "${b.who}". Members: ${ms.results.map((x) => x.name || masked(x.phone)).join(", ")}` }, 400)
+    const x = hit[0]
+    if (x.role === "owner" && ms.results.filter((y) => y.role === "owner").length === 1) return json({ error: `${x.name || "They"} is ${g.name}'s only owner, so can't be removed.` }, 400)
+    await env.DB.prepare("DELETE FROM members WHERE group_id = ? AND person_id = ?").bind(g.id, x.id).run()
+    await stub.kick(x.id)
+    return json({ group: g.name, removed: x.name || masked(x.phone) })
+  }
+  // rename or re-emoji
+  const name = typeof b.name === "string" ? b.name.trim().slice(0, 50) : ""
+  const emoji = typeof b.emoji === "string" ? b.emoji.slice(0, 16) : ""
+  if (!name && !emoji) return json({ error: "Give a new name or emoji." }, 400)
+  await env.DB.prepare("UPDATE groups SET name = COALESCE(NULLIF(?, ''), name), emoji = COALESCE(NULLIF(?, ''), emoji) WHERE id = ?").bind(name, emoji, g.id).run()
+  return json({ group: name || g.name, emoji: emoji || g.emoji })
+}
+
 async function api(req: Request, env: Env, url: URL): Promise<Response> {
   const p = url.pathname
   const m = req.method
@@ -45,6 +130,8 @@ async function api(req: Request, env: Env, url: URL): Promise<Response> {
   // ---- the agent ----
   if (p.startsWith("/api/agent/")) {
     if (!env.AGENT_TOKEN || req.headers.get("authorization") !== `Bearer ${env.AGENT_TOKEN}`) return json({ error: "not allowed" }, 401)
+    // ---- admin (raea admin agent, for easydoes's owner): every group, invite links, members ----
+    if (p.startsWith("/api/agent/admin/")) return admin(req, env, p.slice("/api/agent/admin/".length), m)
     if (p === "/api/agent/groups" && m === "GET") {
       const g = await env.DB.prepare("SELECT g.id, g.name, g.emoji FROM members m JOIN groups g ON g.id = m.group_id WHERE m.person_id = 'agent-raea'").all()
       return json({ groups: g.results })

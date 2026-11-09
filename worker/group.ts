@@ -123,6 +123,12 @@ export class Group extends DurableObject<Env> {
 
   // ---- the agent (RPC from the Worker's /api/agent routes) ----
 
+  /** someone was removed from the group: close their open boards (membership is checked on connect) */
+  async kick(person: string) {
+    for (const ws of this.ctx.getWebSockets(person)) try { ws.close(4003, "removed from the group") } catch {}
+    await this.membersChanged()
+  }
+
   async snapshot() {
     return { board: this.load(), members: await this.members() }
   }
