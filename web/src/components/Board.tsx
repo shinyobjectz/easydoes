@@ -167,49 +167,52 @@ function ProjectHeader() {
   const cards = Object.values(board.cards).filter((c) => c.projectId === p.id)
   const open = cards.filter((c) => !c.done).length
   const lookers = members.filter((m) => m.id !== you && here.some((h) => h.id === m.id && h.where.projectId === p.id))
+  // the nav already names the project (with its emoji), so the page doesn't repeat them; renaming and the emoji are
+  // in the ••• menu
   return (
-    <header className="mb-7">
-      <div className="flex items-center justify-between">
-        <div className="relative">
-          <motion.button whileTap={{ scale: 0.85 }} whileHover={{ rotate: -8, scale: 1.08 }} transition={spring} onClick={() => setEmojiOpen(true)} aria-label="Change the project's emoji" className="text-[44px] leading-none">
-            {p.emoji}
-          </motion.button>
-          <Pop open={emojiOpen} onClose={() => setEmojiOpen(false)} className="w-[320px]">
-            <EmojiGrid value={p.emoji} onPick={(e) => (op({ k: "put", type: "projects", id: p.id, patch: { emoji: e } }), setEmojiOpen(false))} />
-          </Pop>
-        </div>
-        <div className="flex items-center gap-2">
-          {lookers.length > 0 && <Stack people={lookers} here={hereIds} working={working} size={30} />}
-          <motion.button whileTap={{ scale: 0.9 }} onClick={() => share(`/g/${group.id}/p/${p.id}`, `${p.emoji ?? ""} ${p.name}`.trim())} aria-label="Share project" className="grid size-9 place-items-center rounded-full text-ink-2 hover:bg-fill">
-            <Share size={19} />
-          </motion.button>
-          <div className="relative">
-            <motion.button whileTap={{ scale: 0.9 }} onClick={() => (setMenu(true), setSure(false))} aria-label="Project options" className="grid size-9 place-items-center rounded-full text-ink-2 hover:bg-fill">
-              <Ellipsis size={20} />
-            </motion.button>
-            <Pop open={menu} onClose={() => setMenu(false)} align="right" className="w-60">
-              <button
-                onClick={() => {
-                  if (!sure) return setSure(true), buzz("tick")
-                  buzz("drop")
-                  op({ k: "del", type: "projects", id: p.id })
-                  setMenu(false)
-                  const next = Object.values(board.projects).find((x) => x.id !== p.id)
-                  setView(next ? { kind: "board", projectId: next.id } : { kind: "todos" })
-                  toast(`Deleted ${p.name}`)
-                }}
-                className="flex w-full items-center gap-2.5 rounded-xl px-2.5 py-2 text-left font-medium text-danger hover:bg-fill"
-              >
-                <Trash2 size={17} /> {sure ? "Tap again to delete it all" : "Delete project"}
-              </button>
-            </Pop>
-          </div>
-        </div>
-      </div>
-      <Editable value={p.name} onSave={(name) => op({ k: "put", type: "projects", id: p.id, patch: { name } })} className="-ml-1 mt-3 px-1 font-display text-hero" label="Project name" />
-      <p className="mt-2 text-sub text-ink-3 tabular">
+    <header className="mb-6 flex items-center justify-between gap-3">
+      <p className="text-sub text-ink-3 tabular">
         {cards.length === 0 ? "Empty. Add the first thing below." : open ? `${open} to go · ${cards.length - open} done` : "All done. Go outside 🌴"}
       </p>
+      <div className="flex items-center gap-2">
+        {lookers.length > 0 && <Stack people={lookers} here={hereIds} working={working} size={30} />}
+        <motion.button whileTap={{ scale: 0.9 }} onClick={() => share(`/g/${group.id}/p/${p.id}`, `${p.emoji ?? ""} ${p.name}`.trim())} aria-label="Share project" className="grid size-9 place-items-center rounded-full text-ink-2 hover:bg-fill">
+          <Share size={19} />
+        </motion.button>
+        <div className="relative">
+          <motion.button whileTap={{ scale: 0.9 }} onClick={() => (setMenu(true), setSure(false), setEmojiOpen(false))} aria-label="Project options" className="grid size-9 place-items-center rounded-full text-ink-2 hover:bg-fill">
+            <Ellipsis size={20} />
+          </motion.button>
+          <Pop open={menu} onClose={() => setMenu(false)} align="right" className="w-[320px]">
+            {emojiOpen ? (
+              <EmojiGrid value={p.emoji} onPick={(e) => (op({ k: "put", type: "projects", id: p.id, patch: { emoji: e } }), setEmojiOpen(false))} />
+            ) : (
+              <>
+                <div className="flex items-center gap-1.5 px-1 pb-1">
+                  <motion.button whileTap={{ scale: 0.85 }} onClick={() => setEmojiOpen(true)} aria-label="Change the project's emoji" className="grid size-10 shrink-0 place-items-center rounded-xl text-[24px] hover:bg-fill">
+                    {p.emoji}
+                  </motion.button>
+                  <Editable value={p.name} onSave={(name) => op({ k: "put", type: "projects", id: p.id, patch: { name } })} className="px-2 py-2 text-body font-semibold" label="Project name" />
+                </div>
+                <button
+                  onClick={() => {
+                    if (!sure) return setSure(true), buzz("tick")
+                    buzz("drop")
+                    op({ k: "del", type: "projects", id: p.id })
+                    setMenu(false)
+                    const next = Object.values(board.projects).find((x) => x.id !== p.id)
+                    setView(next ? { kind: "board", projectId: next.id } : { kind: "todos" })
+                    toast(`Deleted ${p.name}`)
+                  }}
+                  className="flex w-full items-center gap-2.5 rounded-xl px-2.5 py-2 text-left font-medium text-danger hover:bg-fill"
+                >
+                  <Trash2 size={17} /> {sure ? "Tap again to delete it all" : "Delete project"}
+                </button>
+              </>
+            )}
+          </Pop>
+        </div>
+      </div>
     </header>
   )
 }
