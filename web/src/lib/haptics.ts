@@ -18,11 +18,21 @@ function iosSwitch() {
   return sw
 }
 
+function typing() {
+  const a = document.activeElement as HTMLElement | null
+  if (!a) return false
+  if (a.isContentEditable || a.tagName === "TEXTAREA" || a.tagName === "SELECT") return true
+  return a.tagName === "INPUT" && !["checkbox", "radio", "button", "submit", "range"].includes((a as HTMLInputElement).type)
+}
+
 export function buzz(kind: Kind = "tick") {
   const p = PATTERN[kind]
   try {
     if ("vibrate" in navigator && navigator.vibrate(p)) return
   } catch {}
+  // clicking the switch takes the focus, which would close the keyboard mid-word (the sign-in code lost it after every
+  // digit); while someone is typing, the keyboard's own clicks are the feedback
+  if (typing()) return
   const taps = Array.isArray(p) ? Math.ceil(p.length / 2) : 1
   const s = iosSwitch()
   s.click()

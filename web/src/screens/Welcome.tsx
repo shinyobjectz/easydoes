@@ -128,7 +128,7 @@ export function SignIn({ invite, onIn }: { invite?: string; onIn: (m: Me) => voi
       setErr(x.message)
       setCode("")
       buzz("error")
-      codeRef.current?.focus()
+      setTimeout(() => codeRef.current?.focus(), 0)
     } finally {
       setBusy(false)
     }
@@ -176,7 +176,7 @@ export function SignIn({ invite, onIn }: { invite?: string; onIn: (m: Me) => voi
                 autoComplete="one-time-code"
                 maxLength={6}
                 value={code}
-                disabled={busy}
+                readOnly={busy}
                 onChange={(e) => {
                   const c = e.target.value.replace(/\D/g, "").slice(0, 6)
                   if (c.length > code.length) buzz()
