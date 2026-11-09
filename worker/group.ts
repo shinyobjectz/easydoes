@@ -49,7 +49,7 @@ export class Group extends DurableObject<Env> {
   private commit(op: Op, by: string, cid?: string): boolean {
     const b = this.load()
     const now = Date.now()
-    const before = op.k === "put" && op.type === "cards" ? b.cards[op.id] : undefined
+    const before = op.k === "put" ? (op.type === "cards" ? b.cards[op.id] : op.type === "todos" ? b.todos[op.id] : undefined) : undefined
     const touched = apply(b, op, by, now)
     if (!touched) return false
     for (const t of touched) {
@@ -140,18 +140,29 @@ export class Group extends DurableObject<Env> {
     this.send({ t: "here", here: this.presence() })
   }
 
-  // ---- texts: a card given to someone, or someone's card finished, goes to raea admin, which texts them ----
+  // ---- texts: a card or to-do given to someone, or someone's finished, goes to raea admin, which texts them ----
 
-  private async notice(op: Op, by: string, b: Board, before?: Board["cards"][string]) {
-    if (!this.env.NOTIFY_URL || op.k !== "put" || op.type !== "cards") return
-    const c = b.cards[op.id]
-    if (!c) return
+  private async notice(op: Op, by: string, b: Board, before?: Board["cards"][string] | Board["todos"][string]) {
+    if (!this.env.NOTIFY_URL || op.k !== "put" || (op.type !== "cards" && op.type !== "todos")) return
     const events: { kind: string; to: string[] }[] = []
-    if (Array.isArray(op.patch.assignees)) events.push({ kind: "assigned", to: c.assignees.filter((a) => a !== by && !(before?.assignees ?? []).includes(a)) })
-    if (op.patch.done === true && !before?.done) events.push({ kind: "done", to: [c.by, ...c.assignees].filter((a) => a !== by) })
+    let item: Record<string, unknown>
+    if (op.type === "cards") {
+      const c = b.cards[op.id]
+      const was = before as Board["cards"][string] | undefined
+      if (!c) return
+      if (Array.isArray(op.patch.assignees)) events.push({ kind: "assigned", to: c.assignees.filter((a) => a !== by && !(was?.assignees ?? []).includes(a)) })
+      if (op.patch.done === true && !was?.done) events.push({ kind: "done", to: [...new Set([c.by, ...c.assignees])].filter((a) => a !== by) })
+      item = { kind: "card", id: c.id, title: c.title, emoji: c.emoji, due: c.due, project: b.projects[c.projectId]?.name ?? "", projectId: c.projectId }
+    } else {
+      const t = b.todos[op.id]
+      const was = before as Board["todos"][string] | undefined
+      if (!t) return
+      if (typeof op.patch.assignee === "string" && t.assignee && t.assignee !== by && t.assignee !== was?.assignee) events.push({ kind: "assigned", to: [t.assignee] })
+      if (op.patch.done === true && !was?.done) events.push({ kind: "done", to: [...new Set([t.by, t.assignee])].filter((a) => a && a !== by) })
+      item = { kind: "todo", id: t.id, title: t.text, emoji: "", due: t.due, project: "To-dos" }
+    }
     if (!events.some((e) => e.to.length)) return
-    const project = b.projects[c.projectId]
-    const body = JSON.stringify({ group: this.groupId(), by, card: { id: c.id, title: c.title, emoji: c.emoji, due: c.due, project: project?.name ?? "" }, events })
+    const body = JSON.stringify({ group: this.groupId(), by, item, events: events.filter((e) => e.to.length) })
     const mac = await crypto.subtle.sign("HMAC", await crypto.subtle.importKey("raw", new TextEncoder().encode(this.env.NOTIFY_SECRET ?? ""), { name: "HMAC", hash: "SHA-256" }, false, ["sign"]), new TextEncoder().encode(body))
     await fetch(this.env.NOTIFY_URL, { method: "POST", headers: { "content-type": "application/json", "x-easydoes-signature": [...new Uint8Array(mac)].map((x) => x.toString(16).padStart(2, "0")).join("") }, body })
   }

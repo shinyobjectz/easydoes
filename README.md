@@ -27,6 +27,7 @@ pnpm dev
 `Authorization: Bearer $AGENT_TOKEN`
 
 - `GET /api/agent/groups`: the groups the agent is in
+- `POST /api/agent/groups` `{ name, emoji, people: [{ phone, name, emoji, color, role }] }`: a new group with the agent and those people in it
 - `GET /api/agent/groups/:id/state`: the board and its members
 - `POST /api/agent/groups/:id/ops` `{ ops, where }`: changes, in the same ops the browser sends (`shared/board.ts`)
 - `POST /api/agent/groups/:id/join` `{ invite }`: join with a group's invite code

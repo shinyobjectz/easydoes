@@ -6,7 +6,7 @@
 //   POST /api/groups {name, emoji}        make a group (you're its owner) with a starter project
 //   GET  /api/invite/:code                a group's name and size, before joining;  POST /api/invite/:code  join it
 //   GET  /api/groups/:id/live             the board's WebSocket (members only)
-//   /api/agent/* (bearer AGENT_TOKEN)     raea admin agent: groups, state, ops (shown live as the agent's)
+//   /api/agent/* (bearer AGENT_TOKEN)     raea admin agent: groups (list, make), state, ops (shown live as the agent's)
 import { newId, type Op, type Presence } from "../shared/board"
 import { checkCode, endSession, personOf, phone, sendCode, startSession } from "./auth"
 import type { Env } from "./env"
@@ -45,9 +45,36 @@ async function api(req: Request, env: Env, url: URL): Promise<Response> {
   // ---- the agent ----
   if (p.startsWith("/api/agent/")) {
     if (!env.AGENT_TOKEN || req.headers.get("authorization") !== `Bearer ${env.AGENT_TOKEN}`) return json({ error: "not allowed" }, 401)
-    if (p === "/api/agent/groups") {
+    if (p === "/api/agent/groups" && m === "GET") {
       const g = await env.DB.prepare("SELECT g.id, g.name, g.emoji FROM members m JOIN groups g ON g.id = m.group_id WHERE m.person_id = 'agent-raea'").all()
       return json({ groups: g.results })
+    }
+    if (p === "/api/agent/groups" && m === "POST") {
+      // a new group with the agent in it, and its people by phone (made if new; names only fill blanks)
+      const b = await body(req)
+      const name = String(b.name ?? "").trim().slice(0, 50)
+      if (!name) return json({ error: "A group needs a name." }, 400)
+      const id = newId("g")
+      const now = Date.now()
+      const people: { id: string; role: string }[] = []
+      for (const x of (Array.isArray(b.people) ? b.people : []).slice(0, 50)) {
+        const to = phone(x?.phone)
+        if (!to) return json({ error: `Not a phone number: ${String(x?.phone).slice(-4)}` }, 400)
+        let pid = (await env.DB.prepare("SELECT id FROM people WHERE phone = ?").bind(to).first<{ id: string }>())?.id
+        if (!pid) {
+          pid = newId("u")
+          await env.DB.prepare("INSERT INTO people (id, phone, name, emoji, color, created_at) VALUES (?, ?, ?, ?, ?, ?)").bind(pid, to, String(x.name ?? "").slice(0, 40), String(x.emoji ?? pick(EMOJI)).slice(0, 16), /^#[0-9a-f]{6}$/i.test(x.color ?? "") ? x.color : pick(COLORS), now).run()
+        } else if (x.name) await env.DB.prepare("UPDATE people SET name = CASE WHEN name = '' THEN ? ELSE name END WHERE id = ?").bind(String(x.name).slice(0, 40), pid).run()
+        people.push({ id: pid, role: x.role === "owner" ? "owner" : "member" })
+      }
+      const owner = people.find((x) => x.role === "owner")?.id ?? people[0]?.id ?? "agent-raea"
+      await env.DB.batch([
+        env.DB.prepare("INSERT INTO groups (id, name, emoji, color, invite, created_by, created_at) VALUES (?, ?, ?, ?, ?, ?, ?)").bind(id, name, String(b.emoji ?? "🌴").slice(0, 16), pick(COLORS), invite(), owner, now),
+        env.DB.prepare("INSERT INTO members (group_id, person_id, role, joined_at) VALUES (?, 'agent-raea', 'agent', ?)").bind(id, now),
+        ...people.map((x, i) => env.DB.prepare("INSERT OR IGNORE INTO members (group_id, person_id, role, joined_at) VALUES (?, ?, ?, ?)").bind(id, x.id, x.role, now + i + 1)),
+      ])
+      await env.GROUP.get(env.GROUP.idFromName(id)).init(id, owner)
+      return json({ id, invite: (await env.DB.prepare("SELECT invite FROM groups WHERE id = ?").bind(id).first<{ invite: string }>())!.invite })
     }
     const gm = p.match(/^\/api\/agent\/groups\/([\w-]+)\/(state|ops|join)$/)
     if (!gm) return json({ error: "not found" }, 404)
