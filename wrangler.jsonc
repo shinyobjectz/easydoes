@@ -1,0 +1,19 @@
+// easydoes (easydoes.ai): one Worker serving the web app (Vite build, static assets) and its API, a Durable Object per
+// group holding the live board, and D1 for people, groups, invites and sessions.
+// Secrets (deploy.sh): SENDBLUE_FROM, SENDBLUE_API_KEY, SENDBLUE_API_SECRET (sign-in codes by text), AGENT_TOKEN (raea admin agent),
+// SESSION_PEPPER (hashes codes and sessions).
+{
+  "name": "easydoes",
+  "main": "worker/index.ts",
+  "compatibility_date": "2026-10-01",
+  "account_id": "6d4b74aeb10f455fbf88141901e7595d",
+  "workers_dev": false,
+  "routes": [{ "pattern": "easydoes.ai", "custom_domain": true }],
+  "assets": { "not_found_handling": "single-page-application", "run_worker_first": ["/api/*"] },
+  "vars": { "ORIGIN": "https://easydoes.ai" },
+  "d1_databases": [{ "binding": "DB", "database_name": "easydoes", "database_id": "cd791c04-490b-4b1a-af7a-c90f9b203b84" }],
+  "durable_objects": { "bindings": [{ "name": "GROUP", "class_name": "Group" }] },
+  "migrations": [{ "tag": "v1", "new_sqlite_classes": ["Group"] }],
+  "ratelimits": [{ "name": "CODE_LIMIT", "namespace_id": "4501", "simple": { "limit": 5, "period": 60 } }],
+  "observability": { "enabled": true }
+}

@@ -1,0 +1,30 @@
+{
+  "name": "easydoes",
+  "private": true,
+  "type": "module",
+  "scripts": {
+    "dev": "vite",
+    "build": "tsc -b && vite build",
+    "check": "tsc -b",
+    "deploy": "./deploy.sh",
+    "db:init": "wrangler d1 execute easydoes --remote --file worker/schema.sql"
+  },
+  "dependencies": {
+    "lucide-react": "1.70.0",
+    "motion": "14.11.1",
+    "react": "19.3.1",
+    "react-dom": "19.3.1"
+  },
+  "devDependencies": {
+    "@cloudflare/vite-plugin": "1.68.0",
+    "@cloudflare/workers-types": "^5.20261109.1",
+    "@tailwindcss/vite": "4.3.5",
+    "@types/react": "^19.3.0",
+    "@types/react-dom": "^19.3.0",
+    "@vitejs/plugin-react": "^6.3.0",
+    "tailwindcss": "4.3.5",
+    "typescript": "^7.0.2",
+    "vite": "8.3.7",
+    "wrangler": "4.159.0"
+  }
+}
