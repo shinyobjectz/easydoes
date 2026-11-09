@@ -1,7 +1,7 @@
 // A group's screen. Wide: a vibrancy sidebar over the board (the board scrolls under it), a card's detail springs in
 // from the right. Phone: a top bar, the board as snapping pages, the sidebar as a drawer, the detail as a sheet.
 import { columnsOf, newId, projectsOf, type Member } from "@shared/board"
-import { Check, ChevronDown, ListTodo, LogOut, Menu, Plus, Share, UserRound, WifiOff, X } from "lucide-react"
+import { Check, ChevronDown, LogOut, Menu, Plus, Share, UserRound, WifiOff, X } from "lucide-react"
 import { AnimatePresence, motion } from "motion/react"
 import { useCallback, useEffect, useMemo, useState, useSyncExternalStore } from "react"
 import { Board } from "../components/Board"
@@ -187,7 +187,7 @@ function TopBar({ onMenu }: { onMenu: () => void }) {
   const project = view.kind === "board" ? board.projects[view.projectId] : undefined
   return (
     <header className="vibrancy fixed inset-x-0 top-0 z-30 border-b border-glass-line pad-safe-t">
-      <div className="flex h-[52px] items-center gap-2 px-2">
+      <div className="flex h-[52px] items-center gap-2 pl-2 pr-4">
         <motion.button whileTap={{ scale: 0.9 }} onClick={onMenu} aria-label="Open the sidebar" className="grid size-10 place-items-center rounded-full text-accent-ink">
           <Menu size={22} strokeWidth={2.2} />
         </motion.button>
@@ -196,14 +196,6 @@ function TopBar({ onMenu }: { onMenu: () => void }) {
           <span className="truncate font-display text-body font-semibold tracking-[-0.02em]">{view.kind === "todos" ? "To-dos" : project?.name ?? group.name}</span>
         </button>
         <Stack people={present} here={hereIds} working={working} size={28} max={3} />
-        <motion.button
-          whileTap={{ scale: 0.9 }}
-          onClick={() => setView(view.kind === "todos" ? { kind: "board", projectId: projectsOf(board)[0]?.id ?? "" } : { kind: "todos" })}
-          aria-label={view.kind === "todos" ? "Show the board" : "Show the to-do list"}
-          className="ml-1 grid size-10 place-items-center rounded-full text-accent-ink"
-        >
-          {view.kind === "todos" ? <span className="text-[20px]">{projectsOf(board)[0]?.emoji ?? "🌴"}</span> : <ListTodo size={22} strokeWidth={2.2} />}
-        </motion.button>
       </div>
     </header>
   )

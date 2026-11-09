@@ -129,12 +129,10 @@ export function Board({ inset, wide }: { inset: number; wide: boolean }) {
 
   const dragged = drag ? board.cards[drag.id] : undefined
   if (!project) return null
-  const first = cols.find((c) => !isDone(c)) ?? cols[0]
   return (
     <div ref={scroller} className="no-scrollbar h-full overflow-y-auto overscroll-contain" style={{ paddingLeft: inset }}>
       <div className={`mx-auto w-full max-w-[720px] px-5 pb-40 ${wide ? "pt-14" : "pt-[calc(52px+env(safe-area-inset-top)+24px)]"}`}>
         <ProjectHeader />
-        {first && <QuickAdd col={first} />}
         {cols.map((col) => (
           <Section key={col.id} col={col} drag={drag} landed={landed} onLift={lift} onFinish={finish} />
         ))}
@@ -214,37 +212,6 @@ function ProjectHeader() {
         </div>
       </div>
     </header>
-  )
-}
-
-/** the page's one big field: adds to the first section that isn't Done */
-function QuickAdd({ col }: { col: Column }) {
-  const { board, op } = useGroup()
-  const [t, setT] = useState("")
-  return (
-    <form
-      onSubmit={(e) => {
-        e.preventDefault()
-        const title = t.trim()
-        if (!title) return
-        buzz("drop")
-        op({ k: "put", type: "cards", id: newId("k"), patch: { projectId: col.projectId, columnId: col.id, title, pos: between(undefined, cardsOf(board, col.id)[0]?.pos) } })
-        setT("")
-      }}
-      className="mb-4 flex items-center gap-3.5 rounded-card bg-surface px-4 shadow-card transition-shadow focus-within:ring-4 focus-within:ring-accent/25"
-    >
-      <span className="grid size-[26px] shrink-0 place-items-center rounded-full bg-accent text-white">
-        <Plus size={17} strokeWidth={2.8} />
-      </span>
-      <input value={t} onChange={(e) => setT(e.target.value)} placeholder={`Add to ${col.name}`} aria-label={`Add to ${col.name}`} className="min-w-0 flex-1 bg-transparent py-4 text-body outline-none" />
-      <AnimatePresence>
-        {t.trim() && (
-          <motion.button initial={{ scale: 0, opacity: 0 }} animate={{ scale: 1, opacity: 1 }} exit={{ scale: 0, opacity: 0 }} transition={spring} className="rounded-full bg-accent px-3.5 py-1.5 text-meta font-semibold text-white">
-            Add
-          </motion.button>
-        )}
-      </AnimatePresence>
-    </form>
   )
 }
 
