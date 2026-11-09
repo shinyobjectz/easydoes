@@ -5,6 +5,7 @@ import { between, cardsOf, columnsOf, newId, type Card, type Column } from "@sha
 import { CalendarDays, Check, CheckSquare, ChevronRight, Ellipsis, Plus, Share, StickyNote, Trash2 } from "lucide-react"
 import { AnimatePresence, motion } from "motion/react"
 import { useEffect, useRef, useState } from "react"
+import { flushSync } from "react-dom"
 import { burst, sprinkle } from "../lib/burst"
 import { useGroup } from "../lib/group"
 import { buzz } from "../lib/haptics"
@@ -250,6 +251,14 @@ function Section({ col, drag, landed, onLift, onFinish }: { col: Column; drag: D
   const [open, setOpen] = useState(!done)
   const [menu, setMenu] = useState(false)
   const [adding, setAdding] = useState(false)
+  const addRef = useRef<HTMLInputElement>(null)
+  // the field is drawn and focused inside the tap itself: iPhone Safari opens the keyboard only for a focus made
+  // during the tap, and the field closes when it loses the focus empty
+  function add() {
+    buzz()
+    flushSync(() => (setOpen(true), setAdding(true)))
+    addRef.current?.focus()
+  }
   const ph = drag?.over?.col === col.id ? drag.over.index : -1
   const shown = open || ph >= 0
   return (
@@ -265,7 +274,7 @@ function Section({ col, drag, landed, onLift, onFinish }: { col: Column; drag: D
         )}
         <span className="text-sub font-medium text-ink-3 tabular">{all.length}</span>
         <span className="flex-1" />
-        <motion.button whileTap={{ scale: 0.85 }} onClick={() => (buzz(), setOpen(true), setAdding(true))} aria-label={`Add to ${col.name}`} className="grid size-8 place-items-center rounded-full text-accent-ink hover:bg-fill">
+        <motion.button whileTap={{ scale: 0.85 }} onClick={add} aria-label={`Add to ${col.name}`} className="grid size-8 place-items-center rounded-full text-accent-ink hover:bg-fill">
           <Plus size={19} strokeWidth={2.4} />
         </motion.button>
         <div className="relative">
@@ -305,7 +314,7 @@ function Section({ col, drag, landed, onLift, onFinish }: { col: Column; drag: D
               ))}
             </AnimatePresence>
             {ph >= cards.length && <Placeholder h={drag?.h ?? 56} />}
-            {adding && <InlineAdd col={col} onDone={() => setAdding(false)} />}
+            {adding && <InlineAdd col={col} inputRef={addRef} onDone={() => setAdding(false)} />}
             {!cards.length && !adding && ph < 0 && <p className="py-4 text-sub text-ink-3">{done ? "Finished things land here." : "Nothing here. Drag something in."}</p>}
           </motion.div>
         )}
@@ -327,9 +336,10 @@ function Placeholder({ h }: { h: number }) {
   return <motion.div layout initial={{ height: 0, opacity: 0 }} animate={{ height: h, opacity: 1 }} transition={spring} className="my-1 rounded-tile bg-accent-soft ring-2 ring-inset ring-accent/40" />
 }
 
-function InlineAdd({ col, onDone }: { col: Column; onDone: () => void }) {
+function InlineAdd({ col, onDone, inputRef }: { col: Column; onDone: () => void; inputRef: React.RefObject<HTMLInputElement | null> }) {
   const { board, op } = useGroup()
   const [t, setT] = useState("")
+  const born = useRef(Date.now())
   return (
     <form
       onSubmit={(e) => {
@@ -343,7 +353,7 @@ function InlineAdd({ col, onDone }: { col: Column; onDone: () => void }) {
       className="flex items-center gap-3.5 border-b border-line py-3"
     >
       <span className="size-[26px] shrink-0 rounded-full border-2 border-dashed border-fill-2" />
-      <input autoFocus value={t} onChange={(e) => setT(e.target.value)} onBlur={() => !t.trim() && onDone()} onKeyDown={(e) => e.key === "Escape" && onDone()} placeholder={`Add to ${col.name}`} className="flex-1 bg-transparent text-body outline-none" />
+      <input ref={inputRef} enterKeyHint="done" value={t} onChange={(e) => setT(e.target.value)} onBlur={() => !t.trim() && Date.now() - born.current > 500 && onDone()} onKeyDown={(e) => e.key === "Escape" && onDone()} placeholder={`Add to ${col.name}`} className="flex-1 bg-transparent text-body outline-none" />
     </form>
   )
 }

@@ -50,14 +50,14 @@ export function Detail({ wide }: { wide: boolean }) {
               dragControls={controls}
               dragConstraints={{ top: 0, bottom: 0 }}
               dragElastic={{ top: 0.04, bottom: 0.7 }}
-              onDragEnd={(_, i) => (i.offset.y > 110 || i.velocity.y > 600) && openCard(null)}
+              onDragEnd={(_, i) => (i.offset.y > 70 || i.velocity.y > 400) && openCard(null)}
               className="vibrancy shadow-panel fixed inset-x-0 bottom-0 z-50 flex max-h-[92dvh] flex-col rounded-t-sheet"
               aria-label="Card"
             >
-              <div className="flex touch-none justify-center pt-2.5 pb-1" onPointerDown={(e) => controls.start(e)}>
+              <div className="flex touch-none justify-center pt-3 pb-2" onPointerDown={(e) => controls.start(e)}>
                 <span className="h-[5px] w-10 rounded-full bg-fill-2" />
               </div>
-              <Body card={card} />
+              <Body card={card} grab={(e) => controls.start(e)} />
             </motion.aside>
           </>
         ))}
@@ -65,7 +65,8 @@ export function Detail({ wide }: { wide: boolean }) {
   )
 }
 
-function Body({ card }: { card: Card }) {
+/** grab: on a phone, the sheet's top row drags it down too (the handle alone was too small a target) */
+function Body({ card, grab }: { card: Card; grab?: (e: React.PointerEvent) => void }) {
   const g = useGroup()
   const { board, op, members, member, here, hereIds, working, you, openCard, colors } = g
   const cols = columnsOf(board, card.projectId)
@@ -96,7 +97,10 @@ function Body({ card }: { card: Card }) {
 
   return (
     <>
-      <div className="flex items-center gap-2 px-4 pt-3 pb-1">
+      <div
+        className={`flex items-center gap-2 px-4 pt-3 pb-1 ${grab ? "touch-none" : ""}`}
+        onPointerDown={(e) => grab && !(e.target as HTMLElement).closest("button,input,textarea,a,[role=button]") && grab(e)}
+      >
         <div className="flex-1 text-meta text-ink-3">
           {lookers.length ? (
             <span className="inline-flex items-center gap-2">
