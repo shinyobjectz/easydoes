@@ -13,6 +13,7 @@ import { newId, type Op, type Presence } from "../shared/board"
 import { checkCode, endSession, personOf, phone, sendCode, startSession } from "./auth"
 import type { Env } from "./env"
 export { Group } from "./group"
+import { ogImage, page } from "./og/routes"
 
 const json = (body: unknown, status = 200, headers: Record<string, string> = {}) =>
   new Response(JSON.stringify(body), { status, headers: { "content-type": "application/json", "cache-control": "no-store", ...headers } })
@@ -266,9 +267,11 @@ async function api(req: Request, env: Env, url: URL): Promise<Response> {
 }
 
 export default {
-  async fetch(req: Request, env: Env): Promise<Response> {
+  async fetch(req: Request, env: Env, ctx: ExecutionContext): Promise<Response> {
     const url = new URL(req.url)
     if (url.pathname.startsWith("/api/")) return api(req, env, url).catch((e) => (console.error("easydoes:", e), json({ error: "Something went wrong on our side. Try again." }, 500)))
+    if (url.pathname.startsWith("/og/") && url.pathname.endsWith(".png")) return ogImage(req, env, ctx).catch((e) => (console.error("easydoes: og image", e?.stack ?? e), (env.ASSETS ? env.ASSETS.fetch(new Request(new URL("/icon.svg", url))) : new Response("image failed", { status: 500 }))))
+    if (req.method === "GET" && (url.pathname === "/" || /^\/(j|g)\//.test(url.pathname))) return page(req, env, ctx)
     return env.ASSETS.fetch(req)
   },
 } satisfies ExportedHandler<Env>

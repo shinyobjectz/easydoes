@@ -14,6 +14,7 @@ import { GroupCtx, useGroup, type Ctx, type View } from "../lib/group"
 import { buzz } from "../lib/haptics"
 import { Live } from "../lib/live"
 import { go, useMedia } from "../lib/route"
+import { share } from "../lib/share"
 
 const SIDEBAR = 272
 
@@ -33,7 +34,15 @@ function GroupLive({ me, group, sub, onProfile, live }: Props & { live: Live }) 
   const s = useSyncExternalStore(live.subscribe, live.get)
   const wide = useMedia("(min-width: 900px)")
   const [drawer, setDrawer] = useState(false)
-  const [cardId, setCardId] = useState<string | null>(null)
+  // ?c= opens a card (a shared card's link); the URL follows whichever card is open
+  const [cardId, setCardId] = useState<string | null>(() => new URLSearchParams(location.search).get("c"))
+  useEffect(() => {
+    const u = new URL(location.href)
+    if ((u.searchParams.get("c") ?? null) === cardId) return
+    if (cardId) u.searchParams.set("c", cardId)
+    else u.searchParams.delete("c")
+    history.replaceState(history.state, "", u.pathname + u.search)
+  }, [cardId])
 
   const projects = projectsOf(s.board)
   const view: View = sub === "todos" ? { kind: "todos" } : { kind: "board", projectId: sub?.startsWith("p/") && s.board.projects[sub.slice(2)] ? sub.slice(2) : projects[0]?.id ?? "" }
@@ -208,18 +217,7 @@ function Sidebar({ onProfile }: { onProfile: () => void }) {
   const openTodos = Object.values(board.todos).filter((t) => !t.done).length
   const lookers = (projectId: string) => members.filter((m) => m.id !== g.you && here.some((h) => h.id === m.id && h.where.projectId === projectId))
 
-  async function invite() {
-    buzz()
-    const url = `${location.origin}/j/${group.invite}`
-    const text = `Join ${group.name} on easydoes`
-    try {
-      if (navigator.share && matchMedia("(pointer: coarse)").matches) await navigator.share({ title: text, text, url })
-      else {
-        await navigator.clipboard.writeText(url)
-        toast("Invite link copied")
-      }
-    } catch {}
-  }
+  const invite = () => share(`/j/${group.invite}`, `Join ${group.name} on easydoes`, "Invite link copied")
 
   return (
     <div className="flex h-full flex-col">

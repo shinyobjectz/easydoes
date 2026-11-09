@@ -1,16 +1,17 @@
 // The group's to-do list: one list for quick things, each with a person and a day. Check one and it ticks and sprinkles;
 // swipe one left (or use its delete) to remove it.
 import { between, byPos, newId, type Todo } from "@shared/board"
-import { CalendarDays, ChevronRight, Plus, Trash2, UserRound } from "lucide-react"
+import { CalendarDays, ChevronRight, Plus, Share, Trash2, UserRound } from "lucide-react"
 import { AnimatePresence, motion, useMotionValue, useTransform } from "motion/react"
 import { useRef, useState } from "react"
 import { sprinkle } from "../lib/burst"
 import { useGroup } from "../lib/group"
 import { buzz } from "../lib/haptics"
+import { share } from "../lib/share"
 import { Avatar, Pop, dueLabel, spring, toast, useLocal } from "./ui"
 
 export function Todos({ inset }: { inset: number }) {
-  const { board, op, members, you, hereIds, here, member } = useGroup()
+  const { board, op, members, you, hereIds, here, member, group } = useGroup()
   const [t, setT] = useState("")
   const [mine, setMine] = useLocal("ed.todos.mine", false)
   const [showDone, setShowDone] = useState(false)
@@ -33,6 +34,9 @@ export function Todos({ inset }: { inset: number }) {
       <div className="mx-auto w-full max-w-[720px] px-5 pb-40 pt-[calc(52px+env(safe-area-inset-top)+24px)] min-[900px]:pt-14">
         <div className="flex items-end gap-3">
           <h1 className="flex-1 font-display text-hero">To-dos</h1>
+          <motion.button whileTap={{ scale: 0.9 }} onClick={() => share(`/g/${group.id}/todos`, `To-dos · ${group.name}`)} aria-label="Share to-dos" className="mb-2 grid size-9 place-items-center rounded-full text-ink-2 hover:bg-fill">
+            <Share size={19} />
+          </motion.button>
           {lookers.length > 0 && (
             <span className="mb-2 flex items-center gap-1.5 text-meta text-ink-2">
               {lookers.map((m) => (

@@ -9,7 +9,7 @@
   "account_id": "6d4b74aeb10f455fbf88141901e7595d",
   "workers_dev": false,
   "routes": [{ "pattern": "easydoes.ai", "custom_domain": true }],
-  "assets": { "not_found_handling": "single-page-application", "run_worker_first": ["/api/*"] },
+  "assets": { "binding": "ASSETS", "not_found_handling": "single-page-application", "run_worker_first": ["/api/*", "/og/*", "/j/*", "/g/*", "/"] },
   "vars": { "ORIGIN": "https://easydoes.ai" },
   "d1_databases": [{ "binding": "DB", "database_name": "easydoes", "database_id": "cd791c04-490b-4b1a-af7a-c90f9b203b84" }],
   "durable_objects": { "bindings": [{ "name": "GROUP", "class_name": "Group" }] },

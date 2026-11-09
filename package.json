@@ -10,10 +10,12 @@
     "db:init": "wrangler d1 execute easydoes --remote --file worker/schema.sql"
   },
   "dependencies": {
+    "@resvg/resvg-wasm": "2.6.2",
     "lucide-react": "1.70.0",
     "motion": "14.11.1",
     "react": "19.3.1",
-    "react-dom": "19.3.1"
+    "react-dom": "19.3.1",
+    "satori": "0.32.0"
   },
   "devDependencies": {
     "@cloudflare/vite-plugin": "1.68.0",

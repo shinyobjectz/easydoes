@@ -2,12 +2,13 @@
 // run of rows. Press a row (long press on touch) and it lifts off the page in 3D, tilting with your speed, and drops
 // into any section with a tick; everyone watching sees it move. Without dragging: the row's detail has its section.
 import { between, cardsOf, columnsOf, newId, type Card, type Column } from "@shared/board"
-import { CalendarDays, Check, CheckSquare, ChevronRight, Ellipsis, Plus, StickyNote, Trash2 } from "lucide-react"
+import { CalendarDays, Check, CheckSquare, ChevronRight, Ellipsis, Plus, Share, StickyNote, Trash2 } from "lucide-react"
 import { AnimatePresence, motion } from "motion/react"
 import { useEffect, useRef, useState } from "react"
 import { burst, sprinkle } from "../lib/burst"
 import { useGroup } from "../lib/group"
 import { buzz } from "../lib/haptics"
+import { share } from "../lib/share"
 import { EmojiGrid, Pop, Stack, dueLabel, spring, toast } from "./ui"
 
 type Drag = { id: string; w: number; h: number; ox: number; oy: number; over: { col: string; index: number } | null }
@@ -157,7 +158,7 @@ export function Board({ inset, wide }: { inset: number; wide: boolean }) {
 }
 
 function ProjectHeader() {
-  const { board, view, op, members, here, hereIds, working, you, setView } = useGroup()
+  const { board, view, op, members, here, hereIds, working, you, setView, group } = useGroup()
   const p = board.projects[view.kind === "board" ? view.projectId : ""]
   const [emojiOpen, setEmojiOpen] = useState(false)
   const [menu, setMenu] = useState(false)
@@ -179,6 +180,9 @@ function ProjectHeader() {
         </div>
         <div className="flex items-center gap-2">
           {lookers.length > 0 && <Stack people={lookers} here={hereIds} working={working} size={30} />}
+          <motion.button whileTap={{ scale: 0.9 }} onClick={() => share(`/g/${group.id}/p/${p.id}`, `${p.emoji ?? ""} ${p.name}`.trim())} aria-label="Share project" className="grid size-9 place-items-center rounded-full text-ink-2 hover:bg-fill">
+            <Share size={19} />
+          </motion.button>
           <div className="relative">
             <motion.button whileTap={{ scale: 0.9 }} onClick={() => (setMenu(true), setSure(false))} aria-label="Project options" className="grid size-9 place-items-center rounded-full text-ink-2 hover:bg-fill">
               <Ellipsis size={20} />

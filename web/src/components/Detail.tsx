@@ -1,12 +1,13 @@
 // A card's detail: a vibrancy panel that springs in from the right (wide) or a sheet you can pull down (phone).
 // Everything edits live; who else has the card open shows at the top.
 import { between, cardsOf, columnsOf, newId, type Card } from "@shared/board"
-import { CalendarDays, Check, Plus, SmilePlus, Trash2, X } from "lucide-react"
+import { CalendarDays, Check, Plus, Share, SmilePlus, Trash2, X } from "lucide-react"
 import { AnimatePresence, motion, useDragControls } from "motion/react"
 import { useEffect, useRef, useState } from "react"
 import { burst } from "../lib/burst"
 import { useGroup } from "../lib/group"
 import { buzz } from "../lib/haptics"
+import { share } from "../lib/share"
 import { Editable } from "./Board"
 import { Avatar, EmojiGrid, Pop, REACTIONS, Stack, dueLabel, spring, toast } from "./ui"
 
@@ -118,6 +119,9 @@ function Body({ card }: { card: Card }) {
           className="grid size-9 place-items-center rounded-full text-ink-3 hover:bg-fill hover:text-danger"
         >
           <Trash2 size={17} />
+        </motion.button>
+        <motion.button whileTap={{ scale: 0.9 }} onClick={() => share(`/g/${g.group.id}/p/${card.projectId}?c=${card.id}`, card.title)} aria-label="Share card" className="grid size-9 place-items-center rounded-full text-ink-2 hover:bg-fill">
+          <Share size={17} />
         </motion.button>
         <motion.button whileTap={{ scale: 0.9 }} onClick={() => openCard(null)} aria-label="Close" className="grid size-9 place-items-center rounded-full bg-fill text-ink-2">
           <X size={18} strokeWidth={2.4} />
